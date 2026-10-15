@@ -1,0 +1,192 @@
+import universidad.*
+
+describe "TP 3: Inscripción a materias - Tests de Aceptación" {
+
+	// Carreras
+	const programacion = new Carrera()
+	const tuess = new Carrera()
+	const to = new Carrera()
+
+	// Materias Programación
+	const epl = new Materia(año = 1, creditos = 8)
+	const mate1 = new Materia(año = 1, creditos = 8)
+	const obj1 = new Materia(año = 1, creditos = 8)
+	const obj2 = new Materia(año = 2, creditos = 8)
+	const obj3 = new Materia(año = 3, creditos = 8)
+	const bd = new Materia(año = 1, creditos = 8)
+	const pconc = new Materia(año = 2, creditos = 8)
+
+	// Materias TUESS
+	const meya = new Materia(año = 1, creditos = 8)
+	const tys = new Materia(año = 1, creditos = 8)
+	const economia = new Materia(año = 1, creditos = 8)
+	const desarrolloLocal = new Materia(año = 2, creditos = 8)
+
+	// Materias TO
+	const lea = new Materia(año = 1, creditos = 8)
+	const cienciasDeLaSalud = new Materia(año = 1, creditos = 8)
+	const psicologia = new Materia(año = 2, creditos = 4)
+	const antropologia = new Materia(año = 2, creditos = 4)
+	const sociologia = new Materia(año = 3, creditos = 8)
+
+	// Estudiantes
+	const alex = new Estudiante()
+	const andy = new Estudiante()
+
+	method initialize() {
+		// Asociar materias a Programación
+		programacion.agregarMateria(epl)
+		programacion.agregarMateria(mate1)
+		programacion.agregarMateria(obj1)
+		programacion.agregarMateria(obj2)
+		programacion.agregarMateria(obj3)
+		programacion.agregarMateria(bd)
+		programacion.agregarMateria(pconc)
+
+		// Asociar materias a TUESS
+		tuess.agregarMateria(meya)
+		tuess.agregarMateria(tys)
+		tuess.agregarMateria(economia)
+		tuess.agregarMateria(desarrolloLocal)
+
+		// Asociar materias a TO
+		to.agregarMateria(lea)
+		to.agregarMateria(cienciasDeLaSalud)
+		to.agregarMateria(psicologia)
+		to.agregarMateria(antropologia)
+		to.agregarMateria(sociologia)
+
+		// Configurar requisitos de correlatividad iniciales
+		obj2.requisito(new Correlativas(correlativas = #{obj1, mate1}))
+		obj3.requisito(new Correlativas(correlativas = #{obj2, bd}))
+		pconc.requisito(new Correlativas(correlativas = #{obj1, bd}))
+		desarrolloLocal.requisito(new Correlativas(correlativas = #{meya}))
+
+		// Inscripciones iniciales de Alex
+		alex.inscribirACarrera(programacion)
+		alex.inscribirACarrera(tuess)
+	}
+
+	test "Parte 1: Inscripción y pertenencia de materias" {
+		assert.that(alex.estaInscriptoEnCarrera(programacion))
+		assert.that(alex.estaInscriptoEnCarrera(tuess))
+		assert.notThat(alex.estaInscriptoEnCarrera(to))
+
+		assert.that(alex.materiaPerteneceACarrerasInscriptas(bd))
+		assert.notThat(alex.materiaPerteneceACarrerasInscriptas(psicologia))
+
+		// No puede reinscribirse a una carrera ya inscripta
+		assert.throwsException({ alex.inscribirACarrera(programacion) })
+	}
+
+	test "Parte 2: Cursadas, aprobaciones y promedios de Alex" {
+		alex.registrarCursada(mate1, 2)
+		alex.registrarCursada(obj1, 10)
+		alex.registrarCursada(economia, 6)
+		alex.registrarCursada(tys, 8)
+		alex.registrarCursada(mate1, 8)
+		alex.registrarCursada(bd, 2)
+
+		// No se puede cursar una materia ya aprobada
+		assert.throwsException({ alex.registrarCursada(mate1, 7) })
+
+		// Validación de nota fuera de rango (1..10)
+		assert.throwsException({ alex.registrarCursada(bd, 12) })
+
+		// Consultas de aprobación y estados de cursada
+		assert.that(alex.tieneAprobada(mate1))
+		assert.notThat(alex.tieneAprobada(bd))
+
+		// Promedio y aprobadas en Programación: (10 + 8) / 2 = 9
+		assert.equals(2, alex.cantidadMateriasAprobadasDeCarrera(programacion))
+		assert.equals(9, alex.promedioDeCarrera(programacion))
+
+		// Promedio en TUESS: (6 + 8) / 2 = 7
+		assert.equals(7, alex.promedioDeCarrera(tuess))
+
+		// Error al pedir promedio de carrera en la que no está inscripto
+		assert.throwsException({ alex.promedioDeCarrera(to) })
+
+		// Se inscribe a TO pero no tiene aprobadas -> Error
+		alex.inscribirACarrera(to)
+		assert.throwsException({ alex.promedioDeCarrera(to) })
+
+		// Promedio general de todas sus carreras: (10 + 6 + 8 + 8) / 4 = 8
+		assert.equals(8, alex.promedio())
+
+		// Historial de notas de mate1 en orden de registro
+		const notasMate1 = alex.cursadasDe(mate1).map({ c => c.nota() })
+		assert.equals([2, 8], notasMate1)
+	}
+
+	test "Parte 3: Validaciones de inscripción a materias para Alex y Andy" {
+		alex.registrarCursada(mate1, 8)
+		alex.registrarCursada(obj1, 10)
+		alex.registrarCursada(economia, 6)
+		alex.registrarCursada(tys, 8)
+
+		andy.inscribirACarrera(programacion)
+		andy.registrarCursada(mate1, 10)
+		andy.registrarCursada(obj1, 10)
+
+		// Alex puede inscribirse a Obj2
+		assert.that(obj2.puedeInscribir(alex))
+
+		// Materias habilitadas de Programación para Alex: epl, obj2, bd
+		assert.equals(#{epl, obj2, bd}, alex.materiasHabilitadas(programacion))
+
+		// Materias habilitadas de TUESS para Alex: meya
+		assert.equals(#{meya}, alex.materiasHabilitadas(tuess))
+
+		// Validaciones de impedimentos
+		assert.notThat(psicologia.puedeInscribir(alex)) // Carrera no inscripta
+		assert.throwsException({ psicologia.inscribir(alex) })
+
+		assert.notThat(economia.puedeInscribir(alex)) // Ya aprobada
+		assert.throwsException({ economia.inscribir(alex) })
+
+		assert.notThat(desarrolloLocal.puedeInscribir(alex)) // Falta correlativa MEyA
+		assert.throwsException({ desarrolloLocal.inscribir(alex) })
+
+		// Inscripción a Obj2
+		obj2.inscribir(alex)
+		assert.throwsException({ obj2.inscribir(alex) }) // No puede reinscribirse
+
+		obj2.inscribir(andy)
+		assert.equals(#{alex, andy}, obj2.inscriptos())
+	}
+
+	test "Parte 4: Tipos polimórficos de requisitos en carrera TO con Andy" {
+		lea.requisito(sinRequisito)
+		cienciasDeLaSalud.requisito(sinRequisito)
+		psicologia.requisito(porAñoAnterior)
+		antropologia.requisito(new PorCreditos(creditosNecesarios = 8))
+		sociologia.requisito(new PorCreditos(creditosNecesarios = 10))
+
+		andy.inscribirACarrera(to)
+
+		// Inicialmente solo puede cursar las de 1er año sin requisitos
+		assert.equals(#{lea, cienciasDeLaSalud}, andy.materiasHabilitadas(to))
+
+		// Cursa LEA (8 créditos en TO)
+		andy.registrarCursada(lea, 10)
+		assert.equals(8, andy.creditosEnCarrera(to))
+		assert.equals(#{cienciasDeLaSalud, antropologia}, andy.materiasHabilitadas(to))
+
+		// Cursa Antropología (4 créditos más -> 12 créditos en TO)
+		andy.registrarCursada(antropologia, 10)
+		assert.equals(12, andy.creditosEnCarrera(to))
+		assert.equals(#{cienciasDeLaSalud, sociologia}, andy.materiasHabilitadas(to))
+
+		// Cursa Ciencias de la Salud (8 créditos más -> 20 créditos en TO, completa 1er año)
+		andy.registrarCursada(cienciasDeLaSalud, 10)
+		assert.equals(20, andy.creditosEnCarrera(to))
+		assert.equals(#{psicologia, sociologia}, andy.materiasHabilitadas(to))
+
+		psicologia.inscribir(andy)
+		sociologia.inscribir(andy)
+
+		assert.equals(#{andy}, psicologia.inscriptos())
+		assert.equals(#{andy}, sociologia.inscriptos())
+	}
+}
